@@ -1,180 +1,109 @@
 
-# Full SEO & Content Completion — All Pages
+# Full Converter Fix + YouTube Short Preview Enhancement
 
-## Audit Summary
+## Root Cause Analysis
 
-After reading every page file, here is the exact status of each:
+### Problem 1 — Format Converter: Wrong MIME Type on All Outputs (Critical Bug)
+The `process-conversion` edge function uploads every output file with `contentType: "video/mp4"` for all non-GIF formats. So when a user converts to `.flv`, `.ogv`, `.mov`, `.webm`, etc., the stored file has the MIME type `video/mp4`. The browser then refuses to download/play it correctly because the declared type doesn't match the extension.
 
-| Page | Schemas | Canonical | OG/Twitter | How-It-Works | FAQ Section | Content Below Tool |
-|---|---|---|---|---|---|---|
-| Index.tsx | WebApp + FAQ | Yes | Yes | Yes | Yes (8 Q&As) | Yes |
-| FormatConverter.tsx | WebApp + HowTo + FAQ + Breadcrumb | Yes | Yes | Yes | Yes | Yes |
-| YouTubeDownloader.tsx | WebApp + FAQ | Yes | Yes | Yes | Yes (8 Q&As) | Yes |
-| VideoToGIF.tsx | WebApp + HowTo + FAQ | Yes | Yes | No how-to section | 4 Q&As | Partial |
-| VideoCompressor.tsx | WebApp + FAQ | Yes | Yes | No how-to section | 4 Q&As | Partial |
-| YouTubeToShort.tsx | NONE | NO | NO | NO | NO | Only 3 use-case cards |
+**Evidence:** Database shows 4 conversions all marked "ready" with output files, but storage metadata confirms `mimetype: video/mp4` for `.ogv`, `.flv`, `.mov` files.
 
-The critical gap is **YouTubeToShort** which has only a title and description tag — no canonical, no OG, no Twitter, no JSON-LD, no content sections. The other pages need FAQ expansion and How-It-Works sections.
+**Fix:** Build a proper MIME type lookup map in `process-conversion` so each format gets the correct `Content-Type` on upload.
 
----
+### Problem 2 — Guest Upload Blocked (Critical Bug)
+The `video-uploads` storage bucket only has an "Authenticated users can upload" RLS policy. Any user who isn't logged in cannot upload files at all — the upload silently fails (no file in storage) and the conversion crashes at the download step.
 
-## Changes Per File
+**Fix:** Add a storage RLS policy to allow anonymous/guest uploads using the `guest/` path prefix. This matches the existing code pattern `${user?.id || "guest"}/${job.id}.${ext}`.
 
-### 1. `src/pages/YouTubeToShort.tsx` — Major overhaul (critical)
+### Problem 3 — YouTube to Short: No Real Output File (Simulated)
+The `youtube-clip` edge function marks the DB record as "ready" with `output_path: clips/{clipId}.mp4` but **never actually uploads a file to that path**. So `getPublicUrl()` returns a URL that 404s and the download button is broken.
 
-**Helmet additions:**
-- `<link rel="canonical" href="https://videoconvert.pro/youtube-to-short" />`
-- `<meta name="robots" content="index, follow" />`
-- Full OpenGraph: `og:type`, `og:url`, `og:site_name`, `og:image`
-- Twitter Card: `twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`
-- JSON-LD `WebApplication` schema with featureList: AI highlights, TikTok/Reels/Shorts output, manual clip, watermark, MP4/WebM/GIF output
-- JSON-LD `HowTo` schema: 5 steps — Paste URL → Fetch video → Choose clip mode → Set output → Download
-- JSON-LD `FAQPage` schema with 8 unique Q&As (see below)
-- JSON-LD `BreadcrumbList`: Home → YouTube Tools → YouTube to Short
+**Fix:** The youtube-clip function needs to at minimum copy a placeholder file or — better — use `yt-dlp` via an external API. Since FFmpeg on edge functions is not possible, we'll integrate with the **RapidAPI YouTube MP4 downloader** for real downloads. However, since the user hasn't provided a RapidAPI key, we'll make the function honestly return an error state with a clear message rather than pretending to succeed with a broken URL, AND provide a real working flow for when the URL is configured.
 
-**New content sections added after the tool (when !videoInfo is shown + always after conversion):**
-
-Section A — How It Works (numbered cards):
-1. Paste any YouTube URL — works with all videos
-2. Fetch video info — we load thumbnail, title, duration
-3. Choose clip mode — Manual (drag slider) or AI Highlights
-4. Set aspect ratio — 9:16 for TikTok/Reels, 16:9 for standard
-5. Download your short — MP4, WebM, or GIF output
-
-Section B — Platform Specs Table (entity completeness — Koray approach):
-
-| Platform | Aspect Ratio | Max Duration | Recommended Resolution | Format |
-|---|---|---|---|---|
-| TikTok | 9:16 | 10 minutes | 1080 x 1920 | MP4 (H.264) |
-| Instagram Reels | 9:16 | 90 seconds | 1080 x 1920 | MP4 (H.264) |
-| YouTube Shorts | 9:16 | 60 seconds | 1080 x 1920 | MP4 |
-| Twitter/X | 16:9 or 1:1 | 2 minutes 20s | 1280 x 720 | MP4 |
-| LinkedIn | 16:9 | 10 minutes | 1920 x 1080 | MP4 |
-
-Section C — FAQ (8 Q&As with matching FAQPage schema):
-1. What is a YouTube short video clipper? — Explains the tool concept
-2. Can I clip any YouTube video? — Public videos, not private/age-restricted
-3. What aspect ratio should I use for TikTok? — 9:16 at 1080x1920
-4. What is the maximum clip length? — Unlimited, but platform limits apply
-5. What does AI Highlights mode do? — Analyzes transcripts and engagement signals
-6. Can I add a watermark to my short? — Yes, optional text overlay
-7. What output formats are supported? — MP4, WebM, GIF
-8. How long until my video is deleted? — 24 hours after processing
-
-Section D — Related tools strip:
-- YouTube Downloader link
-- Video Compressor link
-- Video to GIF link
-- Format Converter link
+### Problem 4 — YouTube Short: Preview mode needs "Short view" panel
+Currently the preview shows the full YouTube embed starting at `startTime`. The user wants to see the clip in the correct aspect ratio as it would appear as a Short (9:16 vertical). We need a proper "Short Preview" mode that shows the clipped segment embedded inside a phone mockup frame.
 
 ---
 
-### 2. `src/pages/VideoToGIF.tsx` — Expand content
+## Exact Changes
 
-**Current gaps:**
-- No How-It-Works section above the tool (just a bare hero)
-- Only 4 FAQ items (insufficient for topical authority)
-- No HowTo schema includes name/description fields
-- Missing Twitter image meta
-- Missing "When to use GIF vs WebP vs MP4" section that was planned
+### 1. `supabase/functions/process-conversion/index.ts` — Fix MIME types
 
-**Changes:**
-- Add HowTo section below the GIF settings table (5 steps with icons)
-- Expand FAQ from 4 → 8 unique Q&As:
-  5. Can I convert MOV to GIF? — Yes, any format supported
-  6. How do I make a GIF loop? — GIFs loop by default automatically
-  7. Can I use a GIF on my website? — Yes, but consider MP4 for speed
-  8. What's the maximum GIF duration recommended? — Under 5 seconds for messaging
-- Add "GIF vs WebP vs MP4" comparison content block
-- Add Twitter image meta tag
-- Add `og:image` meta tag
-- Expand FAQPage JSON-LD to match all 8 Q&As
+Replace the hardcoded `contentType: "video/mp4"` with a complete format-to-MIME map:
 
----
-
-### 3. `src/pages/VideoCompressor.tsx` — Expand content
-
-**Current gaps:**
-- No HowTo JSON-LD schema
-- Only 4 FAQ items
-- No "How It Works" section
-- Missing Twitter image + og:image meta
-- No comparison with other tools
-
-**Changes:**
-- Add HowTo JSON-LD schema: 4 steps — Upload → Set quality → Compress → Download
-- Add a "How to Compress a Video" steps section below the settings guide
-- Expand FAQ from 4 → 8 Q&As:
-  5. Can I compress a 4K video? — Yes, downscale to 1080p
-  6. Does compression affect audio? — Slightly, AAC output
-  7. What's the best setting for email? — 50% quality, 720p
-  8. Can I compress without losing quality? — Copy codec option
-- Add `og:image` and `twitter:image` meta
-- Add HowTo section below the compression guide table
-
----
-
-## Technical Details
-
-### YouTubeToShort Full JSON-LD Set
-
-**WebApplication:**
-```json
-{
-  "@type": "WebApplication",
-  "name": "YouTube to Short Video Clipper",
-  "url": "https://videoconvert.pro/youtube-to-short",
-  "applicationCategory": "MultimediaApplication",
-  "operatingSystem": "Web Browser",
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "featureList": [
-    "Clip any YouTube video to short format",
-    "AI-powered highlight detection",
-    "9:16 vertical output for TikTok and Reels",
-    "Manual trim with slider control",
-    "MP4, WebM, GIF output formats",
-    "Optional watermark text",
-    "720p and 1080p quality output",
-    "No registration required"
-  ]
-}
+```typescript
+const MIME_MAP: Record<string, string> = {
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mkv: "video/x-matroska",
+  mov: "video/quicktime",
+  avi: "video/x-msvideo",
+  flv: "video/x-flv",
+  wmv: "video/x-ms-wmv",
+  ogv: "video/ogg",
+  ts: "video/mp2t",
+  m4v: "video/x-m4v",
+  "3gp": "video/3gpp",
+  gif: "image/gif",
+  mp3: "audio/mpeg",
+  aac: "audio/aac",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  m4a: "audio/mp4",
+};
+const contentType = MIME_MAP[outputFormat?.toLowerCase()] ?? "application/octet-stream";
 ```
 
-**HowTo:**
-```json
-{
-  "@type": "HowTo",
-  "name": "How to Create a Short Video from YouTube",
-  "step": [
-    { "position": 1, "text": "Paste any YouTube video URL into the input field and click Fetch Video" },
-    { "position": 2, "text": "Review the video title, thumbnail, and duration" },
-    { "position": 3, "text": "Choose Manual Clip and drag the start/end slider, or use AI Highlights to auto-detect the best moment" },
-    { "position": 4, "text": "Set aspect ratio (9:16 for TikTok/Reels, 16:9 for standard), format, and quality" },
-    { "position": 5, "text": "Click Create Short Video and download your clip when processing completes" }
-  ]
-}
+### 2. Add Guest Upload RLS Policy (SQL Migration)
+
+Add a storage policy so unauthenticated users can upload to paths starting with `guest/`:
+
+```sql
+CREATE POLICY "Guest users can upload videos"
+ON storage.objects FOR INSERT
+TO anon
+WITH CHECK (
+  bucket_id = 'video-uploads'
+  AND (storage.foldername(name))[1] = 'guest'
+);
 ```
 
-**FAQPage** (8 entities covering all searcher intents)
+Also add a SELECT policy so guests can read their own uploads (needed by the edge function when it downloads the input file using anon context isn't needed since edge function uses service role — but let's add it for completeness).
 
-**BreadcrumbList:**
-```json
-{
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    { "position": 1, "name": "Home", "item": "https://videoconvert.pro" },
-    { "position": 2, "name": "YouTube Tools", "item": "https://videoconvert.pro/youtube-to-short" },
-    { "position": 3, "name": "YouTube to Short Video", "item": "https://videoconvert.pro/youtube-to-short" }
-  ]
-}
-```
+### 3. `supabase/functions/youtube-clip/index.ts` — Honest error + RapidAPI path
+
+Replace the simulation with an honest implementation:
+- If `RAPIDAPI_KEY` secret is set: call RapidAPI to get a real download URL, fetch the stream, upload to `video-outputs`, update DB to "ready" with real output path
+- If `RAPIDAPI_KEY` is NOT set: update DB to "processing_unavailable" with a clear error message, return an error response so the frontend shows an honest "not available" state rather than a fake success
+
+### 4. `src/pages/YouTubeToShort.tsx` — Handle honest error state + improve Short preview
+
+**Error handling:** If `youtube-clip` returns an error about the service not being configured, show a clear user-facing message: "Short video export requires additional server setup. Use the Preview to watch your clip selection on YouTube."
+
+**Short Preview Panel enhancement:** Add a "View as Short" toggle inside the preview panel. When enabled, render the YouTube embed inside a phone/TikTok-style frame (black bars top and bottom, 9:16 crop overlay) so the user can visually verify how their clip will look as a Short. This uses CSS to overlay a phone bezel frame around the iframe.
+
+**Preview iframe fix:** Update the embed URL to use `?start={startTime}&end={endTime}&autoplay=1` so the video actually stops at the end time (YouTube embeds support `end` parameter).
+
+### 5. `src/components/ConversionQueue.tsx` — Download button improvements
+
+Add explicit MIME type hint to the `<a>` download link so browsers handle the download correctly regardless of stored MIME type. The download attribute triggers the correct behavior.
 
 ---
 
-## File Change Summary
+## Files Changed
 
-| File | Change Type | Key Additions |
+| File | Change | Why |
 |---|---|---|
-| `src/pages/YouTubeToShort.tsx` | Major — critical | Full Helmet, 4 JSON-LD schemas, How It Works section, Platform Specs table, 8-item FAQ, Related tools |
-| `src/pages/VideoToGIF.tsx` | Expand | og:image + twitter:image, FAQ 4→8, GIF vs MP4 comparison, How-to steps section |
-| `src/pages/VideoCompressor.tsx` | Expand | HowTo JSON-LD, og:image + twitter:image, FAQ 4→8, How-to steps section |
+| `supabase/functions/process-conversion/index.ts` | Fix MIME type map | Outputs get correct Content-Type so browser downloads work |
+| `supabase/functions/youtube-clip/index.ts` | Honest error + RapidAPI path | Stop pretending to succeed with a broken URL |
+| `src/pages/YouTubeToShort.tsx` | Error state + Short preview frame | Honest UX + visual Short preview in phone frame |
+| `src/pages/Index.tsx` | Upload guest RLS note | Guest uploads work |
+| DB Migration | Guest upload policy | Unauthenticated users can upload to `guest/` prefix |
+
+## Order of Implementation
+
+1. Run DB migration for guest upload policy
+2. Fix `process-conversion` MIME types (immediate download fix)
+3. Fix `youtube-clip` to be honest about status
+4. Update YouTube to Short page with honest error state and improved preview
+5. Minor download improvements in ConversionQueue
