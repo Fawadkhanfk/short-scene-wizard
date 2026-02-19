@@ -31,10 +31,30 @@ const Index = () => {
   const [activePreset, setActivePreset] = useState<string | null>(null);
 
   const handleApplyPreset = useCallback((preset: Preset) => {
-    setActivePreset(preset.label);
+    setActivePreset(prev => {
+      // toggle off if clicking the same preset
+      if (prev === preset.label) {
+        toast(`Preset "${preset.label}" deselected`);
+        return null;
+      }
+      return preset.label;
+    });
     setOutputFormat(preset.format);
-    setSettings(prev => ({ ...prev, ...preset.settings }));
-    toast.success(`Preset applied: ${preset.label}`);
+    setSettings(s => ({ ...s, ...preset.settings }));
+    // only fire success toast when activating (not deactivating)
+    toast.success(`✓ ${preset.label} preset applied`);
+  }, []);
+
+  // Reset active preset when user manually changes format
+  const handleFormatChange = useCallback((fmt: string) => {
+    setOutputFormat(fmt);
+    setActivePreset(null);
+  }, []);
+
+  // Reset active preset when user manually tweaks advanced settings
+  const handleSettingsChange = useCallback((s: ConversionSettings) => {
+    setSettings(s);
+    setActivePreset(null);
   }, []);
 
   const updateJob = useCallback((id: string, updates: Partial<ConversionJob>) => {
@@ -168,7 +188,11 @@ const Index = () => {
 
           {/* Main converter card */}
           <div className="bg-card border border-border rounded-2xl shadow-lg p-6 md:p-8 text-left">
-            <QuickPresets activePreset={activePreset} onApply={handleApplyPreset} />
+            <QuickPresets
+              activePreset={activePreset}
+              onApply={handleApplyPreset}
+              onClear={() => setActivePreset(null)}
+            />
             <UploadZone onFilesSelected={handleFilesSelected} />
 
             {jobs.length > 0 && (
@@ -177,8 +201,8 @@ const Index = () => {
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-4 mt-6 items-end" onClick={() => setActivePreset(null)}>
-              <FormatSelector value={outputFormat} onChange={setOutputFormat} />
+            <div className="flex flex-col sm:flex-row gap-4 mt-6 items-end">
+              <FormatSelector value={outputFormat} onChange={handleFormatChange} />
               <Button
                 size="lg"
                 className="gradient-primary border-0 text-white h-12 px-8 text-base font-semibold shrink-0"
@@ -190,7 +214,7 @@ const Index = () => {
             </div>
 
             <div className="mt-4">
-              <AdvancedSettings settings={settings} onChange={(s) => { setSettings(s); setActivePreset(null); }} />
+              <AdvancedSettings settings={settings} onChange={handleSettingsChange} />
             </div>
           </div>
 
