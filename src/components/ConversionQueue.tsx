@@ -5,6 +5,15 @@ import { Download, X, FileVideo, CheckCircle, AlertCircle, Loader2 } from "lucid
 import { cn } from "@/lib/utils";
 import { STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
 
+const MIME_MAP: Record<string, string> = {
+  mp4: "video/mp4", webm: "video/webm", mkv: "video/x-matroska",
+  mov: "video/quicktime", avi: "video/x-msvideo", flv: "video/x-flv",
+  wmv: "video/x-ms-wmv", ogv: "video/ogg", ts: "video/mp2t",
+  m4v: "video/x-m4v", "3gp": "video/3gpp", gif: "image/gif",
+  mp3: "audio/mpeg", aac: "audio/aac", wav: "audio/wav",
+  ogg: "audio/ogg", m4a: "audio/mp4",
+};
+
 export interface ConversionJob {
   id: string;
   file?: File;
@@ -97,6 +106,7 @@ const ConversionQueue: React.FC<ConversionQueueProps> = ({ jobs, onRemove, onDow
                     <a
                       href={job.outputUrl}
                       download={job.filename.replace(/\.[^.]+$/, "") + "." + job.outputFormat}
+                      type={MIME_MAP[job.outputFormat?.toLowerCase()] ?? "application/octet-stream"}
                       className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
                       title="Right-click → Save link as for alternative download"
                     >
