@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import AspectRatioSelector from "@/components/AspectRatioSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Helmet } from "react-helmet-async";
-import { Youtube, Scissors, Sparkles, Download, Clock, Play, Loader2, Link as LinkIcon, Film, HardDrive, Zap, Eye, Captions } from "lucide-react";
+import { Youtube, Scissors, Sparkles, Download, Clock, Play, Pause, Loader2, Link as LinkIcon, Film, HardDrive, Zap, Eye, EyeOff, Captions, Smartphone, Monitor, Square, CheckCircle2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { QUALITY_OPTIONS } from "@/lib/constants";
 import { Slider } from "@/components/ui/slider";
@@ -147,6 +147,13 @@ const RELATED_TOOLS = [
   { href: "/mp4-converter", label: "Format Converter", icon: Film },
 ];
 
+// Aspect ratio preview dimensions
+const PREVIEW_ASPECT: Record<string, { w: number; h: number; label: string; icon: React.ElementType }> = {
+  "9:16": { w: 9, h: 16, label: "Vertical (TikTok/Reels/Shorts)", icon: Smartphone },
+  "16:9": { w: 16, h: 9, label: "Landscape (YouTube)", icon: Monitor },
+  "1:1":  { w: 1,  h: 1,  label: "Square (Instagram)",  icon: Square },
+};
+
 const YouTubeToShort = () => {
   const { user } = useAuth();
   const [url, setUrl] = useState("");
@@ -173,6 +180,8 @@ const YouTubeToShort = () => {
   const [subtitleStyle, setSubtitleStyle] = useState("default");
   // Preview
   const [showPreview, setShowPreview] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const fetchVideoInfo = async () => {
     if (!url.trim()) return;
@@ -184,6 +193,8 @@ const YouTubeToShort = () => {
       setEndTime(Math.min(60, data.duration || 60));
       setOutputUrl(null);
       setAiHighlights([]);
+      setSelectedHighlight(null);
+      setShowPreview(false);
     } catch {
       toast.error("Could not fetch video info. Please check the URL.");
     } finally {
@@ -199,12 +210,38 @@ const YouTubeToShort = () => {
         body: { url: url.trim(), title: videoInfo.title, duration: videoInfo.duration },
       });
       if (error) throw error;
-      setAiHighlights(data.highlights || []);
+      const highlights = data.highlights || [];
+      setAiHighlights(highlights);
+      // Auto-select best highlight
+      if (highlights.length > 0) {
+        const best = [...highlights].sort((a: AIHighlight, b: AIHighlight) => b.score - a.score)[0];
+        setSelectedHighlight(best);
+        setStartTime(best.startTime);
+        setEndTime(best.endTime);
+        toast.success(`AI selected best clip: "${best.title}"`);
+      }
     } catch {
       toast.error("AI analysis failed. Please try again.");
     } finally {
       setLoadingAI(false);
     }
+  };
+
+  const selectHighlight = useCallback((h: AIHighlight) => {
+    const isAlreadySelected = selectedHighlight?.startTime === h.startTime;
+    if (isAlreadySelected) {
+      setSelectedHighlight(null);
+    } else {
+      setSelectedHighlight(h);
+      setStartTime(h.startTime);
+      setEndTime(h.endTime);
+      setShowPreview(false); // reset so user can re-trigger preview at new timestamp
+    }
+  }, [selectedHighlight]);
+
+  const handleSeekPreview = () => {
+    setPreviewKey(k => k + 1);
+    setShowPreview(true);
   };
 
   const handleCreateShort = async () => {
@@ -213,8 +250,8 @@ const YouTubeToShort = () => {
     setProgress(10);
     setOutputUrl(null);
 
-    const start = selectedHighlight ? selectedHighlight.startTime : startTime;
-    const end = selectedHighlight ? selectedHighlight.endTime : endTime;
+    const start = startTime;
+    const end = endTime;
 
     try {
       const { data: record } = await supabase
@@ -274,11 +311,13 @@ const YouTubeToShort = () => {
 
   const duration = videoInfo?.duration || 300;
   const videoId = extractVideoId(url);
-  const previewStart = selectedHighlight ? selectedHighlight.startTime : startTime;
-  const previewEnd = selectedHighlight ? selectedHighlight.endTime : endTime;
   const embedSrc = videoId
-    ? `https://www.youtube.com/embed/${videoId}?start=${previewStart}&autoplay=0&modestbranding=1&rel=0`
+    ? `https://www.youtube.com/embed/${videoId}?start=${startTime}&autoplay=1&modestbranding=1&rel=0`
     : null;
+
+  const clipDuration = endTime - startTime;
+  const previewAspect = PREVIEW_ASPECT[aspectRatio] ?? PREVIEW_ASPECT["16:9"];
+  const PreviewIcon = previewAspect.icon;
 
   return (
     <>
@@ -427,27 +466,39 @@ const YouTubeToShort = () => {
                         {aiHighlights.map((h, i) => (
                           <button
                             key={i}
-                            onClick={() => setSelectedHighlight(selectedHighlight?.startTime === h.startTime ? null : h)}
+                            onClick={() => selectHighlight(h)}
                             className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                               selectedHighlight?.startTime === h.startTime
-                                ? "border-primary bg-accent"
+                                ? "border-primary bg-primary/5"
                                 : "border-border hover:border-primary/40"
                             }`}
                           >
                             <div className="flex justify-between items-start gap-2">
-                              <div>
-                                <p className="font-semibold text-sm">{h.title}</p>
-                                <p className="text-xs text-muted-foreground mt-1">{h.reason}</p>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {selectedHighlight?.startTime === h.startTime && (
+                                    <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                                  )}
+                                  <p className="font-semibold text-sm truncate">{h.title}</p>
+                                </div>
+                                <p className="text-xs text-muted-foreground">{h.reason}</p>
                                 <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                                  <Play className="w-3 h-3" />
+                                  <Clock className="w-3 h-3" />
                                   {formatTime(h.startTime)} → {formatTime(h.endTime)}
-                                  <span>({formatTime(h.endTime - h.startTime)} clip)</span>
+                                  <span className="text-primary font-semibold">({formatTime(h.endTime - h.startTime)})</span>
                                 </div>
                               </div>
-                              <div className="shrink-0">
-                                <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">
+                              <div className="shrink-0 flex flex-col items-end gap-2">
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                                  h.score >= 0.85 ? "text-primary bg-primary/15" :
+                                  h.score >= 0.65 ? "text-accent-foreground bg-accent" :
+                                  "text-muted-foreground bg-muted"
+                                }`}>
                                   {Math.round(h.score * 100)}% match
                                 </span>
+                                {selectedHighlight?.startTime === h.startTime && (
+                                  <span className="text-xs text-primary font-semibold">Selected ✓</span>
+                                )}
                               </div>
                             </div>
                           </button>
@@ -458,56 +509,106 @@ const YouTubeToShort = () => {
                 </Tabs>
               </div>
 
-              {/* ── Clip Preview ── */}
-              {embedSrc && (
+              {/* ── Clip Preview Panel ── */}
+              {videoId && (
                 <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                  {/* Header */}
                   <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <Eye className="w-4 h-4 text-primary" />
                       <span className="font-semibold text-sm">Clip Preview</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatTime(previewStart)} → {formatTime(previewEnd)}
-                        <span className="ml-1.5 text-primary font-semibold">({formatTime(previewEnd - previewStart)})</span>
+                      <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                        <PreviewIcon className="w-3 h-3" />
+                        {previewAspect.label}
                       </span>
                     </div>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="text-xs h-7 px-3"
+                      className="text-xs h-8 gap-1.5"
                       onClick={() => setShowPreview(v => !v)}
                     >
-                      {showPreview ? "Hide" : "Show Preview"}
+                      {showPreview ? <><EyeOff className="w-3.5 h-3.5" /> Hide</> : <><Eye className="w-3.5 h-3.5" /> Show Preview</>}
                     </Button>
                   </div>
-                  {showPreview && (
-                    <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
-                      <iframe
-                        key={`${videoId}-${previewStart}`}
-                        src={embedSrc}
-                        title="YouTube clip preview"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        className="absolute inset-0 w-full h-full"
-                      />
+
+                  {/* Clip time bar */}
+                  <div className="flex items-center justify-between px-5 py-3 bg-muted/30 text-xs">
+                    <div className="flex items-center gap-4">
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Play className="w-3 h-3 text-primary" />
+                        Start: <span className="font-mono font-bold text-foreground ml-1">{formatTime(startTime)}</span>
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Pause className="w-3 h-3 text-destructive" />
+                        End: <span className="font-mono font-bold text-foreground ml-1">{formatTime(endTime)}</span>
+                      </span>
                     </div>
-                  )}
-                  {!showPreview && (
+                    <span className="text-primary font-bold font-mono">{formatTime(clipDuration)} clip</span>
+                  </div>
+
+                  {/* Preview iframe or thumbnail */}
+                  {showPreview ? (
+                    <div className="p-5">
+                      <div
+                        className="mx-auto bg-foreground/90 rounded-xl overflow-hidden shadow-xl"
+                        style={
+                          aspectRatio === "9:16"
+                            ? { width: 270, height: 480 }
+                            : aspectRatio === "1:1"
+                            ? { width: 420, height: 420 }
+                            : { width: "100%", aspectRatio: "16/9" }
+                        }
+                      >
+                        <iframe
+                          key={previewKey}
+                          ref={iframeRef}
+                          src={embedSrc!}
+                          title="YouTube clip preview"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          className="w-full h-full"
+                        />
+                      </div>
+                      <p className="text-center text-xs text-muted-foreground mt-3">
+                        Preview starts at <span className="font-mono font-semibold text-foreground">{formatTime(startTime)}</span> — use the slider above to change clip range
+                      </p>
+                      <div className="flex justify-center mt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs gap-1.5"
+                          onClick={handleSeekPreview}
+                        >
+                          <Play className="w-3.5 h-3.5" /> Reload at {formatTime(startTime)}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
                     <button
-                      className="w-full flex items-center gap-3 px-5 py-4 hover:bg-muted/40 transition-colors text-left"
-                      onClick={() => setShowPreview(true)}
+                      className="w-full flex items-center gap-4 px-5 py-4 hover:bg-muted/30 transition-colors text-left"
+                      onClick={handleSeekPreview}
                     >
-                      <img
-                        src={videoInfo?.thumbnail}
-                        alt="thumbnail"
-                        className="w-24 h-14 object-cover rounded-lg shrink-0"
-                      />
+                      <div className="relative shrink-0">
+                        <img
+                          src={videoInfo?.thumbnail}
+                          alt="thumbnail"
+                          className="w-28 h-16 object-cover rounded-lg"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="bg-background/60 rounded-full p-2">
+                            <Play className="w-4 h-4 text-primary fill-primary" />
+                          </div>
+                        </div>
+                      </div>
                       <div>
                         <p className="text-sm font-medium line-clamp-1">{videoInfo?.title}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Starting at {formatTime(previewStart)} · {formatTime(previewEnd - previewStart)} clip
+                          Starts at {formatTime(startTime)} · {formatTime(clipDuration)} clip
                         </p>
-                        <span className="inline-flex items-center gap-1 text-xs text-primary mt-1">
-                          <Play className="w-3 h-3" /> Click to preview
+                        <span className="inline-flex items-center gap-1 text-xs text-primary mt-1.5 font-medium">
+                          <Eye className="w-3 h-3" /> Click to open preview
                         </span>
                       </div>
                     </button>
