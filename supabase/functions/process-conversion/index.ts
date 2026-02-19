@@ -48,11 +48,33 @@ serve(async (req) => {
     // Generate output path
     const outputPath = `outputs/${conversionId}.${outputFormat}`;
 
+    // MIME type map — each format gets the correct Content-Type so browsers handle downloads correctly
+    const MIME_MAP: Record<string, string> = {
+      mp4: "video/mp4",
+      webm: "video/webm",
+      mkv: "video/x-matroska",
+      mov: "video/quicktime",
+      avi: "video/x-msvideo",
+      flv: "video/x-flv",
+      wmv: "video/x-ms-wmv",
+      ogv: "video/ogg",
+      ts: "video/mp2t",
+      m4v: "video/x-m4v",
+      "3gp": "video/3gpp",
+      gif: "image/gif",
+      mp3: "audio/mpeg",
+      aac: "audio/aac",
+      wav: "audio/wav",
+      ogg: "audio/ogg",
+      m4a: "audio/mp4",
+    };
+    const contentType = MIME_MAP[outputFormat?.toLowerCase()] ?? "application/octet-stream";
+
     // Upload to outputs bucket (passthrough for demo — real FFmpeg would transform here)
     const { error: uploadErr } = await supabase.storage
       .from("video-outputs")
       .upload(outputPath, inputData, {
-        contentType: outputFormat === "gif" ? "image/gif" : "video/mp4",
+        contentType,
         upsert: true,
       });
 

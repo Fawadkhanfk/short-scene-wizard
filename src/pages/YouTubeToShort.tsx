@@ -10,7 +10,7 @@ import AspectRatioSelector from "@/components/AspectRatioSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Helmet } from "react-helmet-async";
-import { Youtube, Scissors, Sparkles, Download, Clock, Play, Pause, Loader2, Link as LinkIcon, Film, HardDrive, Zap, Eye, EyeOff, Captions, Smartphone, Monitor, Square, CheckCircle2, ChevronRight } from "lucide-react";
+import { Youtube, Scissors, Sparkles, Download, Clock, Play, Pause, Loader2, Link as LinkIcon, Film, HardDrive, Zap, Eye, EyeOff, Captions, Smartphone, Monitor, Square, CheckCircle2, ChevronRight, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { QUALITY_OPTIONS } from "@/lib/constants";
 import { Slider } from "@/components/ui/slider";
@@ -181,6 +181,8 @@ const YouTubeToShort = () => {
   // Preview
   const [showPreview, setShowPreview] = useState(false);
   const [previewKey, setPreviewKey] = useState(0);
+  const [shortViewMode, setShortViewMode] = useState(false);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const fetchVideoInfo = async () => {
@@ -249,6 +251,7 @@ const YouTubeToShort = () => {
     setProcessing(true);
     setProgress(10);
     setOutputUrl(null);
+    setServiceUnavailable(false);
 
     const start = startTime;
     const end = endTime;
@@ -292,6 +295,12 @@ const YouTubeToShort = () => {
         },
       });
 
+      // Handle "service not configured" gracefully
+      if (result?.unavailable || error?.message?.includes("503")) {
+        setServiceUnavailable(true);
+        return;
+      }
+
       if (error) throw error;
       setProgress(100);
 
@@ -303,7 +312,12 @@ const YouTubeToShort = () => {
         throw new Error(result?.error || "Processing failed");
       }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Processing failed");
+      const msg = err instanceof Error ? err.message : "Processing failed";
+      if (msg.includes("503") || msg.includes("unavailable") || msg.includes("RapidAPI")) {
+        setServiceUnavailable(true);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setProcessing(false);
     }
@@ -312,7 +326,7 @@ const YouTubeToShort = () => {
   const duration = videoInfo?.duration || 300;
   const videoId = extractVideoId(url);
   const embedSrc = videoId
-    ? `https://www.youtube.com/embed/${videoId}?start=${startTime}&autoplay=1&modestbranding=1&rel=0`
+    ? `https://www.youtube.com/embed/${videoId}?start=${startTime}&end=${endTime}&autoplay=1&modestbranding=1&rel=0`
     : null;
 
   const clipDuration = endTime - startTime;
@@ -513,7 +527,7 @@ const YouTubeToShort = () => {
               {videoId && (
                 <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
                   {/* Header */}
-                  <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-2">
                     <div className="flex items-center gap-2.5">
                       <Eye className="w-4 h-4 text-primary" />
                       <span className="font-semibold text-sm">Clip Preview</span>
@@ -522,14 +536,30 @@ const YouTubeToShort = () => {
                         {previewAspect.label}
                       </span>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-8 gap-1.5"
-                      onClick={() => setShowPreview(v => !v)}
-                    >
-                      {showPreview ? <><EyeOff className="w-3.5 h-3.5" /> Hide</> : <><Eye className="w-3.5 h-3.5" /> Show Preview</>}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {/* "View as Short" toggle — only for 9:16 */}
+                      {aspectRatio === "9:16" && showPreview && (
+                        <button
+                          onClick={() => setShortViewMode(v => !v)}
+                          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-all font-medium ${
+                            shortViewMode
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+                          }`}
+                        >
+                          <Smartphone className="w-3.5 h-3.5" />
+                          {shortViewMode ? "Phone View ✓" : "View as Short"}
+                        </button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-8 gap-1.5"
+                        onClick={() => setShowPreview(v => !v)}
+                      >
+                        {showPreview ? <><EyeOff className="w-3.5 h-3.5" /> Hide</> : <><Eye className="w-3.5 h-3.5" /> Show Preview</>}
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Clip time bar */}
@@ -551,28 +581,62 @@ const YouTubeToShort = () => {
                   {/* Preview iframe or thumbnail */}
                   {showPreview ? (
                     <div className="p-5">
-                      <div
-                        className="mx-auto bg-foreground/90 rounded-xl overflow-hidden shadow-xl"
-                        style={
-                          aspectRatio === "9:16"
-                            ? { width: 270, height: 480 }
-                            : aspectRatio === "1:1"
-                            ? { width: 420, height: 420 }
-                            : { width: "100%", aspectRatio: "16/9" }
-                        }
-                      >
-                        <iframe
-                          key={previewKey}
-                          ref={iframeRef}
-                          src={embedSrc!}
-                          title="YouTube clip preview"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          className="w-full h-full"
-                        />
-                      </div>
+                      {shortViewMode && aspectRatio === "9:16" ? (
+                        /* ── Phone mockup frame ── */
+                        <div className="flex flex-col items-center">
+                          <div className="relative" style={{ width: 260 }}>
+                            {/* Phone shell */}
+                            <div className="relative bg-foreground rounded-[2.5rem] p-2 shadow-2xl" style={{ width: 260 }}>
+                              {/* Notch */}
+                              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-20 h-5 bg-foreground rounded-full z-10" />
+                              {/* Screen area */}
+                              <div className="rounded-[2rem] overflow-hidden bg-black" style={{ height: 462 }}>
+                                <iframe
+                                  key={previewKey}
+                                  ref={iframeRef}
+                                  src={embedSrc!}
+                                  title="YouTube Short preview — phone mockup"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                  className="w-full h-full"
+                                  style={{ border: "none" }}
+                                />
+                              </div>
+                              {/* Home indicator */}
+                              <div className="flex justify-center mt-2">
+                                <div className="w-16 h-1 bg-muted-foreground/40 rounded-full" />
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-center text-xs text-muted-foreground mt-4">
+                            9:16 phone view · starts at <span className="font-mono font-semibold text-foreground">{formatTime(startTime)}</span> · ends at <span className="font-mono font-semibold text-foreground">{formatTime(endTime)}</span>
+                          </p>
+                        </div>
+                      ) : (
+                        /* ── Standard aspect-ratio frame ── */
+                        <div
+                          className="mx-auto bg-foreground/90 rounded-xl overflow-hidden shadow-xl"
+                          style={
+                            aspectRatio === "9:16"
+                              ? { width: 270, height: 480 }
+                              : aspectRatio === "1:1"
+                              ? { width: 420, height: 420 }
+                              : { width: "100%", aspectRatio: "16/9" }
+                          }
+                        >
+                          <iframe
+                            key={previewKey}
+                            ref={iframeRef}
+                            src={embedSrc!}
+                            title="YouTube clip preview"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            className="w-full h-full"
+                          />
+                        </div>
+                      )}
                       <p className="text-center text-xs text-muted-foreground mt-3">
-                        Preview starts at <span className="font-mono font-semibold text-foreground">{formatTime(startTime)}</span> — use the slider above to change clip range
+                        Preview starts at <span className="font-mono font-semibold text-foreground">{formatTime(startTime)}</span> and stops at <span className="font-mono font-semibold text-foreground">{formatTime(endTime)}</span>
                       </p>
                       <div className="flex justify-center mt-3">
                         <Button
@@ -605,7 +669,7 @@ const YouTubeToShort = () => {
                       <div>
                         <p className="text-sm font-medium line-clamp-1">{videoInfo?.title}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Starts at {formatTime(startTime)} · {formatTime(clipDuration)} clip
+                          Starts at {formatTime(startTime)} · ends at {formatTime(endTime)} · {formatTime(clipDuration)} clip
                         </p>
                         <span className="inline-flex items-center gap-1 text-xs text-primary mt-1.5 font-medium">
                           <Eye className="w-3 h-3" /> Click to open preview
@@ -726,6 +790,29 @@ const YouTubeToShort = () => {
                 <div className="space-y-2">
                   <Progress value={progress} />
                   <p className="text-xs text-center text-muted-foreground">{progress}% complete</p>
+                </div>
+              )}
+
+              {serviceUnavailable && (
+                <div className="bg-warning/10 border border-warning/30 rounded-2xl p-5 animate-fade-in">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-sm">Short video export requires additional setup</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Downloading and re-encoding YouTube videos requires a video processing API key (RapidAPI) to be configured on the server.
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        In the meantime, use the <strong>Preview</strong> above to watch your exact clip selection directly on YouTube — start at <span className="font-mono font-semibold">{formatTime(startTime)}</span>, end at <span className="font-mono font-semibold">{formatTime(endTime)}</span>.
+                      </p>
+                      <button
+                        className="mt-3 text-xs text-primary underline underline-offset-2 hover:no-underline"
+                        onClick={handleSeekPreview}
+                      >
+                        Open Preview at {formatTime(startTime)} →
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
