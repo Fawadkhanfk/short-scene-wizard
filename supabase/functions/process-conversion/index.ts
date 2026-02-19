@@ -256,13 +256,18 @@ serve(async (req) => {
 
     await supabase.from("conversions").update({ progress: 20 }).eq("id", conversionId);
 
-    // Build Transloadit assembly params
-    const params = buildTransloaditParams(
+    // Build Transloadit assembly params — auth MUST be inside params JSON
+    const assemblySteps = buildTransloaditParams(
       outputFormat as string,
       settings as Record<string, unknown> | null
     );
 
-    // Sign the params with HMAC-SHA256
+    const params = {
+      auth: { key: authKey },
+      ...assemblySteps,
+    };
+
+    // Sign the params JSON with HMAC-SHA256
     const paramsJson = JSON.stringify(params);
     const encoder = new TextEncoder();
     const keyData = encoder.encode(authSecret);
@@ -273,7 +278,6 @@ serve(async (req) => {
 
     // Build multipart form
     const form = new FormData();
-    form.append("auth[key]", authKey);
     form.append("params", paramsJson);
     form.append("signature", sigHex);
 
