@@ -5,14 +5,15 @@ import { useAuth } from "@/lib/auth-context";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Menu, X, Video, Scissors, Zap, LogIn, User, LayoutDashboard, LogOut } from "lucide-react";
+import { ChevronDown, Menu, X, Video, Scissors, Zap, LogIn, User, LayoutDashboard, LogOut, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TOOLS_MENU = [
-  { href: "/", label: "Video Converter", icon: Video, desc: "Convert any video format" },
+  { href: "/", label: "Video Converter", icon: Video, desc: "Convert any video format — 60+ formats" },
   { href: "/youtube-to-short", label: "YouTube to Short", icon: Scissors, desc: "Clip YouTube videos for TikTok / Reels" },
+  { href: "/youtube-downloader", label: "YouTube Downloader", icon: Download, desc: "Download YouTube videos as MP4 or MP3" },
   { href: "/video-to-gif", label: "Video to GIF", icon: Zap, desc: "Convert video to animated GIF" },
-  { href: "/video-compressor", label: "Compress Video", icon: Zap, desc: "Reduce video file size" },
+  { href: "/video-compressor", label: "Compress Video", icon: Zap, desc: "Reduce video file size by up to 90%" },
 ];
 
 const Navbar = () => {
@@ -29,7 +30,7 @@ const Navbar = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 shrink-0">
             <div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center">
-              <Video className="w-4.5 h-4.5 text-white w-5 h-5" />
+              <Video className="w-5 h-5 text-white" />
             </div>
             <span className="font-bold text-lg">
               <span className="text-gradient">VideoConvert</span>
@@ -73,13 +74,13 @@ const Navbar = () => {
             </DropdownMenu>
 
             <Link
-              to="/youtube-to-short"
+              to="/youtube-downloader"
               className={cn(
                 "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                isActive("/youtube-to-short") ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                isActive("/youtube-downloader") ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
-              YouTube Clipper
+              YT Downloader
             </Link>
           </nav>
 

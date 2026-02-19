@@ -14,15 +14,26 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
+  // Parse body once at the top — avoids double-read on error
+  let body: { conversionId?: string; inputPath?: string; outputFormat?: string; settings?: unknown } = {};
   try {
-    const { conversionId, inputPath, outputFormat, settings } = await req.json();
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid request body" }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
+  const { conversionId, inputPath, outputFormat, settings } = body;
+
+  try {
     // Update status to converting
     await supabase.from("conversions").update({ status: "converting", progress: 20 }).eq("id", conversionId);
 
     // NOTE: Real FFmpeg processing would run here via a worker or external service.
     // For demo purposes, we simulate the conversion and copy the file as-is.
-    // In production, integrate with a video processing service (e.g., AWS MediaConvert, 
+    // In production, integrate with a video processing service (e.g., AWS MediaConvert,
     // Transloadit, or a dedicated FFmpeg worker).
 
     // Download input file
@@ -58,17 +69,15 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (err) {
-    if (req.body) {
-      const body = await req.json().catch(() => ({}));
-      if (body.conversionId) {
-        await supabase.from("conversions").update({
-          status: "failed",
-          error_message: err.message,
-        }).eq("id", body.conversionId);
-      }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (conversionId) {
+      await supabase.from("conversions").update({
+        status: "failed",
+        error_message: message,
+      }).eq("id", conversionId);
     }
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

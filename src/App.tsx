@@ -16,6 +16,7 @@ import Signup from "./pages/Signup";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import FormatConverter from "./pages/FormatConverter";
+import YouTubeDownloader from "./pages/YouTubeDownloader";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="/video-to-gif" element={<Layout><VideoToGIF /></Layout>} />
               <Route path="/video-compressor" element={<Layout><VideoCompressor /></Layout>} />
               <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+              <Route path="/youtube-downloader" element={<Layout><YouTubeDownloader /></Layout>} />
               <Route path="/:format-converter" element={<Layout><FormatConverter /></Layout>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

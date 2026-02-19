@@ -151,12 +151,14 @@ const Index = () => {
   };
 
   const handleDownload = (job: ConversionJob) => {
-    if (job.outputUrl) {
-      const a = document.createElement("a");
-      a.href = job.outputUrl;
-      a.download = job.filename.replace(/\.[^.]+$/, "") + "." + job.outputFormat;
-      a.click();
-    }
+    if (!job.outputUrl) return;
+    const a = document.createElement("a");
+    a.href = job.outputUrl;
+    a.download = job.filename.replace(/\.[^.]+$/, "") + "." + job.outputFormat;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const handleRemove = (id: string) => {

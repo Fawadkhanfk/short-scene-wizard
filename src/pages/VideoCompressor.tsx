@@ -13,6 +13,18 @@ import { Download, Loader2, HardDrive } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 
+const SITE_URL = "https://videoconvert.pro";
+
+const triggerDownload = (url: string, filename: string) => {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};
+
 const VideoCompressor = () => {
   const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
@@ -90,19 +102,52 @@ const VideoCompressor = () => {
     }
   };
 
+  const pageTitle = "Free Online Video Compressor — Reduce Video File Size | VideoConvert Pro";
+  const pageDesc = "Compress MP4, MOV, MKV, and AVI videos online. Reduce file size by up to 90% with quality control or target size mode. Free, no registration, no watermark.";
+
   return (
     <>
       <Helmet>
-        <title>Video Compressor — Reduce Video File Size Online | VideoConvert Pro</title>
-        <meta name="description" content="Compress any video online and reduce file size. Control quality or target a specific size. Free and fast." />
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDesc} />
+        <link rel="canonical" href={`${SITE_URL}/video-compressor`} />
+        <meta name="robots" content="index, follow" />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDesc} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={`${SITE_URL}/video-compressor`} />
+        <meta property="og:site_name" content="VideoConvert Pro" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDesc} />
+        <script type="application/ld+json">{JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "Video Compressor",
+          "url": `${SITE_URL}/video-compressor`,
+          "applicationCategory": "MultimediaApplication",
+          "operatingSystem": "Web Browser",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+          "description": pageDesc,
+          "featureList": ["Quality % mode", "Target size mode", "Resolution downscaling", "MP4 MP4 MKV MOV AVI support", "No watermark"],
+        })}</script>
+        <script type="application/ld+json">{JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            { "@type": "Question", "name": "How much can I reduce video file size?", "acceptedAnswer": { "@type": "Answer", "text": "Depending on the source video, you can reduce file size by 50–90% using H.264 compression. A 100MB video can often be compressed to 10–30MB with acceptable quality." } },
+            { "@type": "Question", "name": "Will compressing reduce video quality?", "acceptedAnswer": { "@type": "Answer", "text": "Some quality reduction is expected. At 75% quality setting most viewers cannot distinguish from the original. Below 50% quality, artifacts become visible." } },
+            { "@type": "Question", "name": "What video formats can I compress?", "acceptedAnswer": { "@type": "Answer", "text": "You can compress MP4, MOV, MKV, AVI, WebM, and most other video formats. The output is always in the same format as the input." } },
+          ],
+        })}</script>
       </Helmet>
 
       <section className="gradient-hero py-14">
         <div className="container max-w-2xl mx-auto px-4 text-center">
           <h1 className="text-4xl font-extrabold tracking-tight mb-3">
-            <span className="text-gradient">Compress</span> Video
+            Free Online <span className="text-gradient">Video Compressor</span>
           </h1>
-          <p className="text-muted-foreground">Reduce video file size without sacrificing quality</p>
+          <p className="text-muted-foreground text-lg">Reduce video file size by up to 90% — free, no registration, no watermark.</p>
         </div>
       </section>
 
@@ -120,7 +165,7 @@ const VideoCompressor = () => {
 
           {file && (
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
-              <h3 className="font-semibold">Compression Settings</h3>
+              <h2 className="font-semibold">Compression Settings</h2>
 
               {/* Mode toggle */}
               <div className="flex rounded-lg border border-border overflow-hidden">
@@ -144,6 +189,7 @@ const VideoCompressor = () => {
                     Quality — {quality}%
                   </Label>
                   <Slider min={10} max={100} step={5} value={[quality]} onValueChange={([v]) => setQuality(v)} />
+                  <p className="text-xs text-muted-foreground mt-1.5">Higher = better quality, larger file. 75% is recommended for most uses.</p>
                 </div>
               ) : (
                 <div>
@@ -158,9 +204,9 @@ const VideoCompressor = () => {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="keep">Keep Original</SelectItem>
-                    <SelectItem value="1920x1080">1080p</SelectItem>
-                    <SelectItem value="1280x720">720p</SelectItem>
-                    <SelectItem value="854x480">480p</SelectItem>
+                    <SelectItem value="1920x1080">1080p — Best quality</SelectItem>
+                    <SelectItem value="1280x720">720p — Good balance</SelectItem>
+                    <SelectItem value="854x480">480p — Smaller file</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -190,19 +236,65 @@ const VideoCompressor = () => {
 
               {outputUrl && (
                 <div className="text-center pt-2 animate-fade-in">
-                  <p className="text-success font-semibold mb-3">✓ Video compressed!</p>
-                  <Button className="gradient-primary border-0 text-white gap-2" onClick={() => {
-                    const a = document.createElement("a");
-                    a.href = outputUrl;
-                    a.download = "compressed." + (file.name.split(".").pop() || "mp4");
-                    a.click();
-                  }}>
-                    <Download className="w-4 h-4" /> Download Compressed
+                  <p className="text-success font-semibold mb-3">✓ Video compressed successfully!</p>
+                  <Button
+                    className="gradient-primary border-0 text-white gap-2"
+                    onClick={() => triggerDownload(outputUrl, "compressed." + (file.name.split(".").pop() || "mp4"))}
+                  >
+                    <Download className="w-4 h-4" /> Download Compressed Video
                   </Button>
                 </div>
               )}
             </div>
           )}
+
+          {/* Compression Guide */}
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <h2 className="font-bold text-lg mb-4">Video Compression Guide</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border">
+                  <tr>
+                    <th className="text-left pb-3 font-semibold">Quality Setting</th>
+                    <th className="text-left pb-3 font-semibold">File Size Reduction</th>
+                    <th className="text-left pb-3 font-semibold">Use Case</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {[
+                    { q: "90%", r: "10–20% smaller", u: "Near-lossless, archiving" },
+                    { q: "75%", r: "40–60% smaller", u: "Sharing, streaming (recommended)" },
+                    { q: "50%", r: "60–75% smaller", u: "Email, messaging apps" },
+                    { q: "25%", r: "75–85% smaller", u: "Previews, thumbnails" },
+                  ].map(row => (
+                    <tr key={row.q} className="hover:bg-muted/30">
+                      <td className="py-2.5 font-mono text-primary font-semibold text-xs">{row.q}</td>
+                      <td className="py-2.5 text-xs text-muted-foreground">{row.r}</td>
+                      <td className="py-2.5 text-xs text-muted-foreground">{row.u}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* FAQ */}
+          <div>
+            <h2 className="font-bold text-lg mb-4">Frequently Asked Questions</h2>
+            <div className="space-y-3">
+              {[
+                { q: "How does video compression work?", a: "Video compression removes redundant data between frames. H.264 codec analyzes differences between frames and only stores changes, dramatically reducing file size while preserving perceived quality." },
+                { q: "What's the best quality setting for sharing on WhatsApp?", a: "WhatsApp limits video to 16MB. Use 75% quality and 720p resolution, then compress until the file meets the limit. Most videos compress to well under 16MB." },
+                { q: "Will my video lose quality permanently?", a: "Compression is lossy — some quality is lost. However, at 75% quality, most viewers can't tell the difference. Keep your original file as a backup before compressing." },
+                { q: "What is the maximum file size I can upload?", a: "Free users can upload up to 500MB. Sign up for higher limits and batch compression." },
+              ].map(faq => (
+                <div key={faq.q} className="bg-card border border-border rounded-xl p-4">
+                  <h3 className="font-semibold text-sm mb-1">{faq.q}</h3>
+                  <p className="text-sm text-muted-foreground">{faq.a}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
     </>

@@ -45,7 +45,10 @@ const Dashboard = () => {
     const a = document.createElement("a");
     a.href = data.publicUrl;
     a.download = conv.input_filename.replace(/\.[^.]+$/, "") + "." + conv.output_format;
+    a.style.display = "none";
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
   };
 
   return (

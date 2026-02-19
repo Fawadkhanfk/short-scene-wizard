@@ -407,7 +407,10 @@ const YouTubeToShort = () => {
                       const a = document.createElement("a");
                       a.href = outputUrl;
                       a.download = `short.${outputFormat}`;
+                      a.style.display = "none";
+                      document.body.appendChild(a);
                       a.click();
+                      document.body.removeChild(a);
                     }}
                   >
                     <Download className="w-4 h-4" /> Download Short
