@@ -84,14 +84,26 @@ const ConversionQueue: React.FC<ConversionQueueProps> = ({ jobs, onRemove, onDow
               )}
 
               {job.status === "ready" && (
-                <Button
-                  size="sm"
-                  className="mt-2 h-8 gradient-primary border-0 text-white gap-1.5"
-                  onClick={() => onDownload(job)}
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Download {job.outputFormat.toUpperCase()}
-                </Button>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <Button
+                    size="sm"
+                    className="h-8 gradient-primary border-0 text-white gap-1.5"
+                    onClick={() => onDownload(job)}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download {job.outputFormat.toUpperCase()}
+                  </Button>
+                  {job.outputUrl && (
+                    <a
+                      href={job.outputUrl}
+                      download={job.filename.replace(/\.[^.]+$/, "") + "." + job.outputFormat}
+                      className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+                      title="Right-click → Save link as for alternative download"
+                    >
+                      Save link as…
+                    </a>
+                  )}
+                </div>
               )}
             </div>
           </div>
