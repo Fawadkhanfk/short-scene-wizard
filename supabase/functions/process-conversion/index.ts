@@ -222,6 +222,10 @@ serve(async (req) => {
   const authKey = Deno.env.get("TRANSLOADIT_AUTH_KEY");
   const authSecret = Deno.env.get("TRANSLOADIT_AUTH_SECRET");
 
+  // Diagnostic: log key prefix (never logs full key)
+  console.log(`[transloadit] authKey prefix: ${authKey?.slice(0, 6)}... length=${authKey?.length}`);
+  console.log(`[transloadit] authSecret set: ${!!authSecret}, length=${authSecret?.length}`);
+
   if (!authKey || !authSecret) {
     return new Response(JSON.stringify({
       error: "Video processing service not configured. Please add TRANSLOADIT_AUTH_KEY and TRANSLOADIT_AUTH_SECRET secrets."
