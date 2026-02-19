@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
-import { Download, Loader2, HardDrive } from "lucide-react";
+import { Download, Loader2, HardDrive, Upload, Settings, Zap, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
+import { Link } from "react-router-dom";
 
 const SITE_URL = "https://videoconvert.pro";
+const OG_IMAGE = `${SITE_URL}/og-video-compressor.jpg`;
 
 const triggerDownload = (url: string, filename: string) => {
   const a = document.createElement("a");
@@ -24,6 +26,20 @@ const triggerDownload = (url: string, filename: string) => {
   a.click();
   document.body.removeChild(a);
 };
+
+const pageTitle = "Free Online Video Compressor — Reduce Video File Size Up to 90% | VideoConvert Pro";
+const pageDesc = "Compress MP4, MOV, MKV, and AVI videos online. Reduce file size by up to 90% with quality control or target size mode. Free, no registration, no watermark.";
+
+const faqItems = [
+  { q: "How does video compression work?", a: "Video compression removes redundant data between frames using codecs like H.264. The encoder analyses differences between consecutive frames and only stores changes, rather than complete frames — dramatically reducing file size while preserving perceived quality." },
+  { q: "What's the best quality setting for sharing on WhatsApp?", a: "WhatsApp limits video to 16 MB. Set quality to 75% and resolution to 720p, then compress. Most videos of a few minutes will come in well under 16 MB. If still too large, try 50% quality." },
+  { q: "Will my video lose quality permanently?", a: "Compression is lossy — some data is discarded during encoding. At 75% quality, most viewers cannot detect a difference from the original. Always keep a copy of the original file before compressing." },
+  { q: "What is the maximum file size I can upload?", a: "Free users can upload up to 500 MB. Sign up for higher file size limits and batch compression of multiple videos at once." },
+  { q: "Can I compress a 4K video?", a: "Yes. Upload your 4K (3840×2160) video and set Resolution to 1080p. This alone typically reduces file size by 70–80% before any quality compression is applied. 1080p is sufficient for most web and social media use cases." },
+  { q: "Does compression affect audio quality?", a: "Slightly. The output uses AAC audio at 128 kbps by default, which is transparent for speech and music at normal listening volume. If audio quality is critical, use the 90% quality setting to preserve higher audio bitrate." },
+  { q: "What's the best setting for emailing a video?", a: "Most email services limit attachments to 10–25 MB. Use 50% quality with 720p resolution. A typical 2-minute video at 1080p compresses to under 15 MB at 50% quality, making it safe to email." },
+  { q: "Can I compress a video without losing quality?", a: "True lossless compression is not possible with H.264, but you can use 90% quality to achieve near-lossless results with 10–20% file size reduction. For heavier compression without visible quality loss, 75% quality is recommended." },
+];
 
 const VideoCompressor = () => {
   const { user } = useAuth();
@@ -102,8 +118,7 @@ const VideoCompressor = () => {
     }
   };
 
-  const pageTitle = "Free Online Video Compressor — Reduce Video File Size | VideoConvert Pro";
-  const pageDesc = "Compress MP4, MOV, MKV, and AVI videos online. Reduce file size by up to 90% with quality control or target size mode. Free, no registration, no watermark.";
+  const outputFilename = file ? `compressed.${file.name.split(".").pop() || "mp4"}` : "compressed.mp4";
 
   return (
     <>
@@ -112,14 +127,19 @@ const VideoCompressor = () => {
         <meta name="description" content={pageDesc} />
         <link rel="canonical" href={`${SITE_URL}/video-compressor`} />
         <meta name="robots" content="index, follow" />
+        {/* OpenGraph */}
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDesc} />
         <meta property="og:type" content="website" />
         <meta property="og:url" content={`${SITE_URL}/video-compressor`} />
         <meta property="og:site_name" content="VideoConvert Pro" />
+        <meta property="og:image" content={OG_IMAGE} />
+        {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={pageDesc} />
+        <meta name="twitter:image" content={OG_IMAGE} />
+        {/* JSON-LD Schemas */}
         <script type="application/ld+json">{JSON.stringify({
           "@context": "https://schema.org",
           "@type": "WebApplication",
@@ -129,15 +149,44 @@ const VideoCompressor = () => {
           "operatingSystem": "Web Browser",
           "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
           "description": pageDesc,
-          "featureList": ["Quality % mode", "Target size mode", "Resolution downscaling", "MP4 MP4 MKV MOV AVI support", "No watermark"],
+          "featureList": [
+            "Quality % compression mode",
+            "Target file size mode",
+            "Resolution downscaling (1080p, 720p, 480p)",
+            "MP4, MOV, MKV, AVI, WebM support",
+            "Estimated output size preview",
+            "No watermark added",
+            "Free, no registration required",
+          ],
+        })}</script>
+        <script type="application/ld+json">{JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "HowTo",
+          "name": "How to Compress a Video Online",
+          "description": "Reduce your video file size in four steps using VideoConvert Pro's free online video compressor.",
+          "step": [
+            { "@type": "HowToStep", "position": 1, "name": "Upload your video", "text": "Drag and drop your MP4, MOV, MKV, AVI, or WebM file onto the upload zone. Files up to 500 MB are supported." },
+            { "@type": "HowToStep", "position": 2, "name": "Choose compression mode", "text": "Select Quality % to control output quality directly (75% is recommended), or select Target Size to specify a maximum output file size in MB." },
+            { "@type": "HowToStep", "position": 3, "name": "Set resolution", "text": "Keep the original resolution, or downscale to 1080p, 720p, or 480p. Reducing resolution from 4K to 1080p alone reduces file size by 70–80%." },
+            { "@type": "HowToStep", "position": 4, "name": "Compress and download", "text": "Click Compress Video. Processing takes under a minute. Download the compressed file and verify size savings in the estimated output preview." },
+          ],
         })}</script>
         <script type="application/ld+json">{JSON.stringify({
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          "mainEntity": [
-            { "@type": "Question", "name": "How much can I reduce video file size?", "acceptedAnswer": { "@type": "Answer", "text": "Depending on the source video, you can reduce file size by 50–90% using H.264 compression. A 100MB video can often be compressed to 10–30MB with acceptable quality." } },
-            { "@type": "Question", "name": "Will compressing reduce video quality?", "acceptedAnswer": { "@type": "Answer", "text": "Some quality reduction is expected. At 75% quality setting most viewers cannot distinguish from the original. Below 50% quality, artifacts become visible." } },
-            { "@type": "Question", "name": "What video formats can I compress?", "acceptedAnswer": { "@type": "Answer", "text": "You can compress MP4, MOV, MKV, AVI, WebM, and most other video formats. The output is always in the same format as the input." } },
+          "mainEntity": faqItems.map(({ q, a }) => ({
+            "@type": "Question",
+            "name": q,
+            "acceptedAnswer": { "@type": "Answer", "text": a },
+          })),
+        })}</script>
+        <script type="application/ld+json">{JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": SITE_URL },
+            { "@type": "ListItem", "position": 2, "name": "Video Tools", "item": `${SITE_URL}/video-compressor` },
+            { "@type": "ListItem", "position": 3, "name": "Video Compressor", "item": `${SITE_URL}/video-compressor` },
           ],
         })}</script>
       </Helmet>
@@ -153,6 +202,8 @@ const VideoCompressor = () => {
 
       <section className="py-10">
         <div className="container max-w-2xl mx-auto px-4 space-y-5">
+
+          {/* Upload */}
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
             <UploadZone onFilesSelected={handleFiles} multiple={false} />
             {file && (
@@ -163,6 +214,7 @@ const VideoCompressor = () => {
             )}
           </div>
 
+          {/* Settings */}
           {file && (
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
               <h2 className="font-semibold">Compression Settings</h2>
@@ -239,18 +291,46 @@ const VideoCompressor = () => {
                   <p className="text-success font-semibold mb-3">✓ Video compressed successfully!</p>
                   <Button
                     className="gradient-primary border-0 text-white gap-2"
-                    onClick={() => triggerDownload(outputUrl, "compressed." + (file.name.split(".").pop() || "mp4"))}
+                    onClick={() => triggerDownload(outputUrl, outputFilename)}
                   >
                     <Download className="w-4 h-4" /> Download Compressed Video
                   </Button>
+                  <div className="mt-2">
+                    <a href={outputUrl} download={outputFilename} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors">
+                      Save link as…
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Compression Guide */}
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-            <h2 className="font-bold text-lg mb-4">Video Compression Guide</h2>
+          {/* ── How to Compress a Video ── */}
+          <section aria-labelledby="how-to-compress-heading" className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <h2 id="how-to-compress-heading" className="font-bold text-lg mb-5">How to Compress a Video — Step by Step</h2>
+            <ol className="space-y-4">
+              {[
+                { icon: Upload, step: "1", title: "Upload your video", desc: "Drag and drop MP4, MOV, MKV, AVI, or WebM files up to 500 MB. The file name and original size are displayed immediately." },
+                { icon: Settings, step: "2", title: "Choose your compression mode", desc: "Quality % mode lets you set a quality percentage (75% recommended). Target Size mode lets you specify a maximum output size in MB." },
+                { icon: Zap, step: "3", title: "Set resolution (optional)", desc: "Downscaling from 4K to 1080p reduces file size by 70–80% before quality compression. 720p is ideal for social media sharing." },
+                { icon: CheckCircle, step: "4", title: "Download compressed video", desc: "Click Compress Video. Processing completes in under a minute. Download your smaller video file, ready to share or upload." },
+              ].map(({ icon: Icon, step, title, desc }) => (
+                <li key={step} className="flex gap-4">
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <Icon className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Step {step}: {title}</p>
+                    <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          {/* ── Compression Guide Table ── */}
+          <section aria-labelledby="compression-guide-heading" className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <h2 id="compression-guide-heading" className="font-bold text-lg mb-4">Video Compression Quality Reference</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-border">
@@ -262,10 +342,10 @@ const VideoCompressor = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {[
-                    { q: "90%", r: "10–20% smaller", u: "Near-lossless, archiving" },
-                    { q: "75%", r: "40–60% smaller", u: "Sharing, streaming (recommended)" },
-                    { q: "50%", r: "60–75% smaller", u: "Email, messaging apps" },
-                    { q: "25%", r: "75–85% smaller", u: "Previews, thumbnails" },
+                    { q: "90%", r: "10–20% smaller", u: "Near-lossless, archiving, master copies" },
+                    { q: "75%", r: "40–60% smaller", u: "Sharing, streaming, social media (recommended)" },
+                    { q: "50%", r: "60–75% smaller", u: "Email (WhatsApp 16 MB limit), messaging apps" },
+                    { q: "25%", r: "75–85% smaller", u: "Previews, thumbnails, very small file required" },
                   ].map(row => (
                     <tr key={row.q} className="hover:bg-muted/30">
                       <td className="py-2.5 font-mono text-primary font-semibold text-xs">{row.q}</td>
@@ -276,25 +356,44 @@ const VideoCompressor = () => {
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
 
-          {/* FAQ */}
-          <div>
-            <h2 className="font-bold text-lg mb-4">Frequently Asked Questions</h2>
+          {/* ── FAQ ── */}
+          <section aria-labelledby="faq-compressor-heading">
+            <h2 id="faq-compressor-heading" className="font-bold text-xl mb-4">Frequently Asked Questions</h2>
             <div className="space-y-3">
-              {[
-                { q: "How does video compression work?", a: "Video compression removes redundant data between frames. H.264 codec analyzes differences between frames and only stores changes, dramatically reducing file size while preserving perceived quality." },
-                { q: "What's the best quality setting for sharing on WhatsApp?", a: "WhatsApp limits video to 16MB. Use 75% quality and 720p resolution, then compress until the file meets the limit. Most videos compress to well under 16MB." },
-                { q: "Will my video lose quality permanently?", a: "Compression is lossy — some quality is lost. However, at 75% quality, most viewers can't tell the difference. Keep your original file as a backup before compressing." },
-                { q: "What is the maximum file size I can upload?", a: "Free users can upload up to 500MB. Sign up for higher limits and batch compression." },
-              ].map(faq => (
-                <div key={faq.q} className="bg-card border border-border rounded-xl p-4">
-                  <h3 className="font-semibold text-sm mb-1">{faq.q}</h3>
-                  <p className="text-sm text-muted-foreground">{faq.a}</p>
+              {faqItems.map(({ q, a }) => (
+                <div key={q} className="bg-card border border-border rounded-xl p-5">
+                  <h3 className="font-semibold text-sm mb-1.5">{q}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{a}</p>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
+
+          {/* ── Related Tools ── */}
+          <nav aria-label="Related video tools">
+            <h2 className="font-bold text-lg mb-3">Related Tools</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[
+                { href: "/mp4-converter", label: "MP4 Converter" },
+                { href: "/video-to-gif", label: "Video to GIF" },
+                { href: "/youtube-to-short", label: "YouTube to Short" },
+                { href: "/youtube-downloader", label: "YouTube Downloader" },
+                { href: "/mkv-converter", label: "MKV Converter" },
+                { href: "/mov-converter", label: "MOV Converter" },
+              ].map(({ href, label }) => (
+                <Link
+                  key={href}
+                  to={href}
+                  className="flex items-center gap-2 p-3 bg-card border border-border rounded-xl hover:border-primary hover:bg-accent transition-all text-sm font-medium"
+                >
+                  <HardDrive className="w-3.5 h-3.5 text-primary shrink-0" />
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </nav>
         </div>
       </section>
     </>
