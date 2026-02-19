@@ -6,6 +6,7 @@ import AdvancedSettings, { ConversionSettings, defaultSettings } from "@/compone
 import ConversionQueue, { ConversionJob } from "@/components/ConversionQueue";
 import ConverterGrid from "@/components/ConverterGrid";
 import TrustSection from "@/components/TrustSection";
+import QuickPresets, { Preset } from "@/components/QuickPresets";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -27,6 +28,14 @@ const Index = () => {
   const [settings, setSettings] = useState<ConversionSettings>(defaultSettings);
   const [jobs, setJobs] = useState<ConversionJob[]>([]);
   const [converting, setConverting] = useState(false);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  const handleApplyPreset = useCallback((preset: Preset) => {
+    setActivePreset(preset.label);
+    setOutputFormat(preset.format);
+    setSettings(prev => ({ ...prev, ...preset.settings }));
+    toast.success(`Preset applied: ${preset.label}`);
+  }, []);
 
   const updateJob = useCallback((id: string, updates: Partial<ConversionJob>) => {
     setJobs(prev => prev.map(j => j.id === id ? { ...j, ...updates } : j));
@@ -159,6 +168,7 @@ const Index = () => {
 
           {/* Main converter card */}
           <div className="bg-card border border-border rounded-2xl shadow-lg p-6 md:p-8 text-left">
+            <QuickPresets activePreset={activePreset} onApply={handleApplyPreset} />
             <UploadZone onFilesSelected={handleFilesSelected} />
 
             {jobs.length > 0 && (
@@ -167,7 +177,7 @@ const Index = () => {
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-4 mt-6 items-end">
+            <div className="flex flex-col sm:flex-row gap-4 mt-6 items-end" onClick={() => setActivePreset(null)}>
               <FormatSelector value={outputFormat} onChange={setOutputFormat} />
               <Button
                 size="lg"
@@ -180,7 +190,7 @@ const Index = () => {
             </div>
 
             <div className="mt-4">
-              <AdvancedSettings settings={settings} onChange={setSettings} />
+              <AdvancedSettings settings={settings} onChange={(s) => { setSettings(s); setActivePreset(null); }} />
             </div>
           </div>
 
