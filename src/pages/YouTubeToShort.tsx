@@ -5,11 +5,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import AspectRatioSelector from "@/components/AspectRatioSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Helmet } from "react-helmet-async";
-import { Youtube, Scissors, Sparkles, Download, Clock, Play, Loader2, Link as LinkIcon, Film, HardDrive, Zap } from "lucide-react";
+import { Youtube, Scissors, Sparkles, Download, Clock, Play, Loader2, Link as LinkIcon, Film, HardDrive, Zap, Eye, Captions } from "lucide-react";
 import { toast } from "sonner";
 import { QUALITY_OPTIONS } from "@/lib/constants";
 import { Slider } from "@/components/ui/slider";
@@ -39,6 +40,18 @@ const formatTime = (secs: number) => {
   const s = secs % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${m}:${String(s).padStart(2, "0")}`;
+};
+
+const extractVideoId = (ytUrl: string): string | null => {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = ytUrl.match(p);
+    if (m) return m[1];
+  }
+  return null;
 };
 
 const pageTitle = "YouTube to Short Video Clipper — Free TikTok, Reels & Shorts Creator | VideoConvert Pro";
@@ -154,6 +167,12 @@ const YouTubeToShort = () => {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  // Subtitles
+  const [subtitlesEnabled, setSubtitlesEnabled] = useState(false);
+  const [subtitleLanguage, setSubtitleLanguage] = useState("auto");
+  const [subtitleStyle, setSubtitleStyle] = useState("default");
+  // Preview
+  const [showPreview, setShowPreview] = useState(false);
 
   const fetchVideoInfo = async () => {
     if (!url.trim()) return;
@@ -230,6 +249,9 @@ const YouTubeToShort = () => {
           outputFormat,
           quality,
           watermarkText: watermark,
+          subtitles: subtitlesEnabled,
+          subtitleLanguage: subtitlesEnabled ? subtitleLanguage : undefined,
+          subtitleStyle: subtitlesEnabled ? subtitleStyle : undefined,
         },
       });
 
@@ -251,6 +273,12 @@ const YouTubeToShort = () => {
   };
 
   const duration = videoInfo?.duration || 300;
+  const videoId = extractVideoId(url);
+  const previewStart = selectedHighlight ? selectedHighlight.startTime : startTime;
+  const previewEnd = selectedHighlight ? selectedHighlight.endTime : endTime;
+  const embedSrc = videoId
+    ? `https://www.youtube.com/embed/${videoId}?start=${previewStart}&autoplay=0&modestbranding=1&rel=0`
+    : null;
 
   return (
     <>
@@ -430,6 +458,63 @@ const YouTubeToShort = () => {
                 </Tabs>
               </div>
 
+              {/* ── Clip Preview ── */}
+              {embedSrc && (
+                <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-primary" />
+                      <span className="font-semibold text-sm">Clip Preview</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatTime(previewStart)} → {formatTime(previewEnd)}
+                        <span className="ml-1.5 text-primary font-semibold">({formatTime(previewEnd - previewStart)})</span>
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs h-7 px-3"
+                      onClick={() => setShowPreview(v => !v)}
+                    >
+                      {showPreview ? "Hide" : "Show Preview"}
+                    </Button>
+                  </div>
+                  {showPreview && (
+                    <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+                      <iframe
+                        key={`${videoId}-${previewStart}`}
+                        src={embedSrc}
+                        title="YouTube clip preview"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="absolute inset-0 w-full h-full"
+                      />
+                    </div>
+                  )}
+                  {!showPreview && (
+                    <button
+                      className="w-full flex items-center gap-3 px-5 py-4 hover:bg-muted/40 transition-colors text-left"
+                      onClick={() => setShowPreview(true)}
+                    >
+                      <img
+                        src={videoInfo?.thumbnail}
+                        alt="thumbnail"
+                        className="w-24 h-14 object-cover rounded-lg shrink-0"
+                      />
+                      <div>
+                        <p className="text-sm font-medium line-clamp-1">{videoInfo?.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Starting at {formatTime(previewStart)} · {formatTime(previewEnd - previewStart)} clip
+                        </p>
+                        <span className="inline-flex items-center gap-1 text-xs text-primary mt-1">
+                          <Play className="w-3 h-3" /> Click to preview
+                        </span>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Output Settings */}
               <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6">
                 <h3 className="font-semibold">Output Settings</h3>
@@ -468,6 +553,57 @@ const YouTubeToShort = () => {
                 <div>
                   <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 block">Watermark Text (optional)</Label>
                   <Input placeholder="@yourusername" value={watermark} onChange={e => setWatermark(e.target.value)} />
+                </div>
+
+                {/* ── Subtitles ── */}
+                <div className="border-t border-border pt-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Captions className="w-4 h-4 text-primary" />
+                      <div>
+                        <p className="text-sm font-semibold">Burn-in Subtitles</p>
+                        <p className="text-xs text-muted-foreground">Auto-generate and embed captions into the video</p>
+                      </div>
+                    </div>
+                    <Switch checked={subtitlesEnabled} onCheckedChange={setSubtitlesEnabled} />
+                  </div>
+
+                  {subtitlesEnabled && (
+                    <div className="grid grid-cols-2 gap-4 animate-fade-in">
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 block">Language</Label>
+                        <Select value={subtitleLanguage} onValueChange={setSubtitleLanguage}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Auto-detect</SelectItem>
+                            <SelectItem value="en">English</SelectItem>
+                            <SelectItem value="es">Spanish</SelectItem>
+                            <SelectItem value="fr">French</SelectItem>
+                            <SelectItem value="de">German</SelectItem>
+                            <SelectItem value="pt">Portuguese</SelectItem>
+                            <SelectItem value="it">Italian</SelectItem>
+                            <SelectItem value="ar">Arabic</SelectItem>
+                            <SelectItem value="ja">Japanese</SelectItem>
+                            <SelectItem value="ko">Korean</SelectItem>
+                            <SelectItem value="zh">Chinese</SelectItem>
+                            <SelectItem value="hi">Hindi</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 block">Caption Style</Label>
+                        <Select value={subtitleStyle} onValueChange={setSubtitleStyle}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Default — white text, black shadow</SelectItem>
+                            <SelectItem value="bold">Bold — large white + outline</SelectItem>
+                            <SelectItem value="highlight">Highlight — yellow background</SelectItem>
+                            <SelectItem value="minimal">Minimal — small grey text</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
