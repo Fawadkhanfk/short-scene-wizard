@@ -17,6 +17,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import FormatConverter from "./pages/FormatConverter";
 import YouTubeDownloader from "./pages/YouTubeDownloader";
+import BrowserConverter from "./pages/BrowserConverter";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/video-compressor" element={<Layout><VideoCompressor /></Layout>} />
               <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
               <Route path="/youtube-downloader" element={<Layout><YouTubeDownloader /></Layout>} />
+              <Route path="/browser-converter" element={<Layout><BrowserConverter /></Layout>} />
               <Route path="/:format-converter" element={<Layout><FormatConverter /></Layout>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
