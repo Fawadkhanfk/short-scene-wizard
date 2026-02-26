@@ -1,8 +1,54 @@
 import React, { useState, useRef } from "react";
-import { Upload, Link, Cloud, ChevronDown } from "lucide-react";
+import { Upload, Link, Cloud, ChevronDown, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+const MAX_FILE_SIZE_MB = 500;
+
+const SUPPORTED_VIDEO_TYPES = new Set([
+  "video/mp4", "video/x-matroska", "video/quicktime", "video/x-msvideo",
+  "video/webm", "video/x-flv", "video/x-ms-wmv", "video/3gpp", "video/3gpp2",
+  "video/mpeg", "video/mp2t", "video/ogg", "video/x-m4v",
+]);
+
+const SUPPORTED_EXTENSIONS = new Set([
+  "mp4", "mkv", "mov", "avi", "webm", "flv", "wmv", "3gp", "3g2", "3gpp",
+  "mpeg", "mpg", "m4v", "m2ts", "mts", "ts", "vob", "ogv", "gif", "swf",
+  "mod", "qt", "rm", "rmvb", "divx", "xvid", "asf", "mpv", "wtv", "mxf",
+  "m1v", "f4p", "f4v", "ogg",
+]);
+
+function getFileExtension(name: string): string {
+  return (name.split(".").pop() || "").toLowerCase();
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function validateFile(file: File, maxSizeMB: number): string | null {
+  const ext = getFileExtension(file.name);
+  const isTypeValid = SUPPORTED_VIDEO_TYPES.has(file.type) || SUPPORTED_EXTENSIONS.has(ext);
+
+  if (!isTypeValid) {
+    return `"${file.name}" is not a supported video format. Supported: MP4, MKV, MOV, AVI, WebM, and 30+ more.`;
+  }
+
+  const maxBytes = maxSizeMB * 1024 * 1024;
+  if (file.size > maxBytes) {
+    return `"${file.name}" (${formatBytes(file.size)}) exceeds the ${maxSizeMB}MB limit.`;
+  }
+
+  if (file.size === 0) {
+    return `"${file.name}" is empty (0 bytes).`;
+  }
+
+  return null;
+}
 
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -17,24 +63,51 @@ const UploadZone: React.FC<UploadZoneProps> = ({
   onUrlSubmit,
   accept = "video/*",
   multiple = true,
-  maxSizeMB = 500,
+  maxSizeMB = MAX_FILE_SIZE_MB,
 }) => {
   const [dragOver, setDragOver] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [url, setUrl] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processFiles = (rawFiles: File[]) => {
+    const errors: string[] = [];
+    const valid: File[] = [];
+
+    for (const file of rawFiles) {
+      const error = validateFile(file, maxSizeMB);
+      if (error) {
+        errors.push(error);
+      } else {
+        valid.push(file);
+      }
+    }
+
+    setValidationErrors(errors);
+
+    if (errors.length > 0) {
+      errors.forEach(e => toast.error(e));
+    }
+
+    if (valid.length > 0) {
+      onFilesSelected(valid);
+    }
+  };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("video/") || f.size > 0);
-    if (files.length) onFilesSelected(files);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length) processFiles(files);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length) onFilesSelected(files);
+    if (files.length) processFiles(files);
+    // Reset input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleUrlSubmit = (e: React.FormEvent) => {
@@ -67,9 +140,24 @@ const UploadZone: React.FC<UploadZoneProps> = ({
             <p className="text-sm text-muted-foreground mt-1">
               or click to browse · Max {maxSizeMB}MB per file
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              MP4, MKV, MOV, AVI, WebM, GIF and 30+ formats supported
+            </p>
           </div>
         </div>
       </div>
+
+      {/* Validation errors */}
+      {validationErrors.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          {validationErrors.map((err, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{err}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <input
         ref={fileInputRef}
