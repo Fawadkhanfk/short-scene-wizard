@@ -267,20 +267,21 @@ serve(async (req) => {
     );
 
     // Transloadit requires an expires timestamp in auth
-    const expires = new Date(Date.now() + 3600_000).toISOString().replace("T", " ").slice(0, 19) + "+00:00";
+    const d = new Date(Date.now() + 3600_000);
+    const expires = `${d.getUTCFullYear()}/${String(d.getUTCMonth()+1).padStart(2,"0")}/${String(d.getUTCDate()).padStart(2,"0")} ${String(d.getUTCHours()).padStart(2,"0")}:${String(d.getUTCMinutes()).padStart(2,"0")}:${String(d.getUTCSeconds()).padStart(2,"0")}+00:00`;
     const params = {
       auth: { key: authKey, expires },
       ...assemblySteps,
     };
 
-    // Sign the params JSON with HMAC-SHA256
+    // Sign the params JSON with HMAC-SHA384 (Transloadit requirement)
     const paramsJson = JSON.stringify(params);
     const encoder = new TextEncoder();
     const keyData = encoder.encode(authSecret);
     const msgData = encoder.encode(paramsJson);
-    const cryptoKey = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const cryptoKey = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-384" }, false, ["sign"]);
     const sigBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData);
-    const sigHex = Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+    const sigHex = "sha384:" + Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
 
     // Build multipart form
     const form = new FormData();
