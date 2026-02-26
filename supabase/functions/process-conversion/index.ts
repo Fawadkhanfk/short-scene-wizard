@@ -175,27 +175,63 @@ function buildTransloaditParams(
     }
   }
 
-  // Map format to Transloadit preset name
+  // Map output format to Transloadit preset name
+  // See: https://transloadit.com/docs/presets/video/
   const presetMap: Record<string, string> = {
-    mp4: "ipad",  // good general MP4 preset
+    mp4: "ipad",
     m4v: "ipad",
+    mov: "ipad",        // MOV uses same H.264+AAC as MP4
+    mkv: "ipad",        // MKV container, re-muxed from H.264+AAC
+    webm: "webm",
+    flv: "flash",
+    wmv: "wmv",
     gif: "gif",
+    "3gp": "android-low",
+    "3g2": "android-low",
+    avi: "ipad",        // AVI container with H.264+AAC
+    ogv: "webm",        // OGV uses similar open codecs
+    ogg: "webm",
   };
+
   const preset = presetMap[fmt];
 
-  return {
-    steps: {
-      encoded: {
-        robot,
-        use: ":original",
-        ffmpeg_stack: "v6.0.0",
-        result: true,
-        ...(preset ? { preset } : { format: fmt }),
-        ...stepParams,
-        ...(Object.keys(ffmpeg).length > 0 ? { ffmpeg } : {}),
-      },
-    },
+  // For formats with a preset, use it. For others, specify format directly via ffmpeg.
+  const stepConfig: Record<string, unknown> = {
+    robot,
+    use: ":original",
+    ffmpeg_stack: "v6.0.0",
+    result: true,
+    ...stepParams,
   };
+
+  if (preset) {
+    stepConfig.preset = preset;
+  }
+
+  // For formats that need explicit container override (e.g. MOV, MKV, AVI)
+  // we override the output format via ffmpeg -f flag
+  const containerOverrides: Record<string, string> = {
+    mov: "mov",
+    mkv: "matroska",
+    avi: "avi",
+    ogv: "ogg",
+    ts: "mpegts",
+    m2ts: "mpegts",
+    mts: "mpegts",
+    mpg: "mpeg",
+    mpeg: "mpeg",
+    m4v: "mp4",
+  };
+
+  if (containerOverrides[fmt]) {
+    ffmpeg["f"] = containerOverrides[fmt];
+  }
+
+  if (Object.keys(ffmpeg).length > 0) {
+    stepConfig.ffmpeg = ffmpeg;
+  }
+
+  return { steps: { encoded: stepConfig } };
 }
 
 async function pollAssembly(assemblyUrl: string, maxWaitMs = 300_000): Promise<Record<string, unknown>> {
