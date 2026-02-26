@@ -193,7 +193,8 @@ function buildTransloaditParams(
     ogg: "webm",
   };
 
-  const preset = presetMap[fmt];
+  // Audio formats should NOT use video presets
+  const preset = isAudio ? undefined : presetMap[fmt];
 
   // For formats with a preset, use it. For others, specify format directly via ffmpeg.
   const stepConfig: Record<string, unknown> = {
@@ -221,6 +222,15 @@ function buildTransloaditParams(
     mpg: "mpeg",
     mpeg: "mpeg",
     m4v: "mp4",
+    // Audio formats need explicit muxer
+    mp3: "mp3",
+    aac: "adts",
+    wav: "wav",
+    ogg_audio: "ogg",
+    m4a: "ipod",
+    opus: "ogg",
+    flac: "flac",
+    wma: "asf",
   };
 
   if (containerOverrides[fmt]) {
