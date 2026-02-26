@@ -192,6 +192,20 @@ const Index = () => {
 
         updateJob(job.id, { status: "converting", progress: 50 });
 
+        // Start polling for progress updates
+        const pollInterval = setInterval(async () => {
+          try {
+            const { data } = await supabase
+              .from("conversions")
+              .select("progress, status")
+              .eq("id", record.id)
+              .single();
+            if (data && data.status === "converting") {
+              updateJob(job.id, { progress: Math.max(50, data.progress ?? 50) });
+            }
+          } catch { /* ignore */ }
+        }, 3000);
+
         const { data: result, error: fnError } = await supabase.functions.invoke("process-conversion", {
           body: {
             conversionId: record.id,
@@ -200,6 +214,8 @@ const Index = () => {
             settings,
           },
         });
+
+        clearInterval(pollInterval);
 
         if (fnError) throw new Error(fnError.message);
 
