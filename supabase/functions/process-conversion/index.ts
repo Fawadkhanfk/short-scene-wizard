@@ -175,14 +175,22 @@ function buildTransloaditParams(
     }
   }
 
+  // Map format to Transloadit preset name
+  const presetMap: Record<string, string> = {
+    mp4: "ipad",  // good general MP4 preset
+    m4v: "ipad",
+    gif: "gif",
+  };
+  const preset = presetMap[fmt];
+
   return {
     steps: {
       encoded: {
         robot,
         use: ":original",
         ffmpeg_stack: "v6.0.0",
-        output_meta: "false",
         result: true,
+        ...(preset ? { preset } : { format: fmt }),
         ...stepParams,
         ...(Object.keys(ffmpeg).length > 0 ? { ffmpeg } : {}),
       },
@@ -199,9 +207,14 @@ async function pollAssembly(assemblyUrl: string, maxWaitMs = 300_000): Promise<R
     const data = await res.json() as Record<string, unknown>;
     const status = data.ok as string;
 
+    console.log(`[transloadit] Assembly status: ${status}`);
+
     if (status === "ASSEMBLY_COMPLETED") return data;
     if (status?.startsWith("ASSEMBLY_ERROR") || data.error) {
-      throw new Error(`Transloadit error: ${data.error || data.message || status}`);
+      // Log full response for debugging
+      console.error(`[transloadit] Full error response: ${JSON.stringify(data).slice(0, 2000)}`);
+      const errMsg = data.error || data.message || status;
+      throw new Error(`Transloadit error: ${errMsg}`);
     }
 
     // Back off: 3s initially, then 5s
