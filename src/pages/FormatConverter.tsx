@@ -87,9 +87,27 @@ const FormatConverter = () => {
         const ins: any = { user_id: user?.id || null, input_filename: job.file.name, input_format: ext, output_format: outputFormat, status: "converting", input_path: path, file_size: job.file.size, settings: settings as unknown as Record<string, unknown> };
         const { data: record } = await supabase.from("conversions").insert(ins).select().single();
         updateJob(job.id, { status: "converting", progress: 50 });
+
+        // Poll for progress updates
+        const pollInterval = setInterval(async () => {
+          try {
+            const { data } = await supabase
+              .from("conversions")
+              .select("progress, status")
+              .eq("id", record?.id)
+              .single();
+            if (data && data.status === "converting") {
+              updateJob(job.id, { progress: Math.max(50, data.progress ?? 50) });
+            }
+          } catch { /* ignore */ }
+        }, 3000);
+
         const { data: result, error } = await supabase.functions.invoke("process-conversion", {
           body: { conversionId: record?.id, inputPath: path, outputFormat, settings },
         });
+
+        clearInterval(pollInterval);
+
         if (error) throw error;
         if (result?.outputPath) {
           const { data: urlData } = supabase.storage.from("video-outputs").getPublicUrl(result.outputPath);

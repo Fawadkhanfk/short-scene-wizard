@@ -94,6 +94,20 @@ const VideoCompressor = () => {
 
       setProgress(50);
 
+      // Poll for progress updates
+      const pollInterval = setInterval(async () => {
+        try {
+          const { data } = await supabase
+            .from("conversions")
+            .select("progress, status")
+            .eq("id", record?.id)
+            .single();
+          if (data && data.status === "converting") {
+            setProgress(Math.max(50, data.progress ?? 50));
+          }
+        } catch { /* ignore */ }
+      }, 3000);
+
       const { data: result, error } = await supabase.functions.invoke("process-conversion", {
         body: {
           conversionId: record?.id,
@@ -102,6 +116,8 @@ const VideoCompressor = () => {
           settings: { compress: true, quality, targetSizeMB, resolution },
         },
       });
+
+      clearInterval(pollInterval);
 
       if (error) throw error;
       setProgress(100);
