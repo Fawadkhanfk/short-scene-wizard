@@ -107,7 +107,7 @@ function buildTransloaditParams(
     }
 
     // Resolution
-    if (s.resolution && typeof s.resolution === "string" && s.resolution !== "original") {
+    if (s.resolution && typeof s.resolution === "string" && s.resolution !== "original" && s.resolution !== "no_change") {
       if (s.resolution === "custom") {
         if (s.customWidth) stepParams["width"] = Number(s.customWidth);
         if (s.customHeight) stepParams["height"] = Number(s.customHeight);
@@ -121,13 +121,13 @@ function buildTransloaditParams(
     }
 
     // Frame rate
-    if (s.frameRate && typeof s.frameRate === "string" && s.frameRate !== "original") {
+    if (s.frameRate && typeof s.frameRate === "string" && s.frameRate !== "original" && s.frameRate !== "no_change") {
       ffmpeg["r"] = s.frameRate;
     }
 
     // Rotation (using transpose filter)
     const vfFilters: string[] = fmt === "gif" ? [] : [];
-    if (s.rotate && typeof s.rotate === "string" && s.rotate !== "0" && fmt !== "gif") {
+    if (s.rotate && typeof s.rotate === "string" && s.rotate !== "0" && s.rotate !== "none" && fmt !== "gif") {
       const rotateMap: Record<string, string> = {
         "90": "transpose=1",
         "180": "transpose=2,transpose=2",
@@ -137,7 +137,7 @@ function buildTransloaditParams(
     }
 
     // Flip
-    if (s.flip && typeof s.flip === "string" && s.flip !== "none" && fmt !== "gif") {
+    if (s.flip && typeof s.flip === "string" && s.flip !== "none" && s.flip !== "no_change" && fmt !== "gif") {
       vfFilters.push(s.flip); // "hflip" or "vflip"
     }
 
