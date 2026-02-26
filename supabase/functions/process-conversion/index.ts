@@ -266,8 +266,10 @@ serve(async (req) => {
       settings as Record<string, unknown> | null
     );
 
+    // Transloadit requires an expires timestamp in auth
+    const expires = new Date(Date.now() + 3600_000).toISOString().replace("T", " ").slice(0, 19) + "+00:00";
     const params = {
-      auth: { key: authKey },
+      auth: { key: authKey, expires },
       ...assemblySteps,
     };
 
